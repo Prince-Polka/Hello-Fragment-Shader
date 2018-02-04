@@ -11,11 +11,11 @@ or run the MAKE.bat file
 # Lots of code stolen from :
 
 OpenGL in a PROPER Windows APP (NO GLUT)  
-https://bobobobo.wordpress.com/2008/02/11/opengl-in-a-proper-windows-app-no-glut/
+https://bobobobo.wordpress.com/2008/02/11/opengl-in-a-proper-windows-app-no-glut/  
 opens a window , but no shader
 
 # And some from:
 
 Hello Triangle OpenGL 4 Up and Running  
-http://antongerdelan.net/opengl/hellotriangle.html
+http://antongerdelan.net/opengl/hellotriangle.html  
 loads shader but uses libraries (GLFW and GLEW)
