@@ -1,0 +1,225 @@
+#include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <gl/gl.h>
+#include "klister.c" // why not "core/klister.c" ?
+
+/* Function prototypes */
+LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
+int _open_osfhandle(long long int,int); /* Works without this but gives warning, where is the definition? */
+void draw(),setup();
+
+#define false 0
+#define true 1 /* keep in mind true is actually anything but 0 , not just 1 */
+
+long long int
+frameCount = 0; /* framerate not yet implemented */
+
+/* defaults to 500x500 if size() function isn't used */
+int width = 500,
+    height = 500;
+
+void size(int w, int h){
+  width = w;
+  height = h;
+}
+
+unsigned int RENDERER;
+
+char glready = false,
+     draw_during_resize = false;
+     /*window is black during resize if this is false, can be set to true, but may be slow*/
+
+void SetStdOutToNewConsole(){
+    /* found @ https://stackoverflow.com/a/3009145/4900546 */
+    int hConHandle;
+    long long int lStdHandle;
+    FILE *fp;
+    AllocConsole();
+    lStdHandle = (long long int)GetStdHandle(STD_OUTPUT_HANDLE);
+    hConHandle = _open_osfhandle(lStdHandle, 0x4000);
+    fp = _fdopen(hConHandle, "w");
+    *stdout = *fp;
+    setvbuf(stdout, 0, _IONBF, 0);
+}
+
+int linecount = 0;
+int *lineLengths;
+GLchar **ret;
+GLchar *buffer;
+GLchar **loadStrings(GLchar *path){
+  free(buffer);
+  free(ret);
+  free(lineLengths);
+  linecount = 0;
+  FILE *in = fopen(path, "r");
+  fseek(in,0,SEEK_END);
+  int len = ftell(in);
+  fseek(in,0,SEEK_SET);
+  buffer = malloc(len * sizeof(GLchar));
+  ret = malloc(len * sizeof(GLchar**));
+  lineLengths = malloc(len * sizeof(int*));
+  fread(buffer, sizeof(GLchar), len, in);
+  GLchar * end = &buffer[len];
+  while (*end==0)end--;
+  if(*end!='\n')*++end='\n';
+  GLchar *i,*j;
+  i = j = buffer;
+  for(;i<=end;i++){
+    if(*i=='\n'){
+      lineLengths[linecount] = i-j + 1;
+      ret[linecount++] = j;
+      *i='\n';
+      j=i+1;
+    }
+  }
+  ret = realloc(ret,linecount * sizeof(GLchar**));
+  lineLengths = realloc(lineLengths ,linecount * sizeof(int*));
+  return ret;
+}
+GLuint loadShader(char *fragFilename,char *vertFilename){
+  GLchar **vert,**frag;
+  GLuint vs,fs,prog;
+  vert = loadStrings(vertFilename);
+  vs = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(vs,linecount,(const GLchar**)vert,lineLengths);
+  glCompileShader(vs);
+  frag = loadStrings(fragFilename);
+  fs = glCreateShader(GL_FRAGMENT_SHADER);
+  glShaderSource(fs,linecount,(const GLchar**)frag,lineLengths);
+  glCompileShader(fs);
+  prog = glCreateProgram();
+  glAttachShader(prog, fs);
+  glAttachShader(prog, vs);
+  glLinkProgram(prog);
+  return prog;
+}
+
+struct Globals{
+    HINSTANCE hInstance;    // window app instance
+    HWND hwnd;              // the window
+    HDC   hdc;              // device context
+    HGLRC hglrc;            // OpenGL rendering context
+}g;
+
+/* In a Windows app, the starting point is WinMain() */
+int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR szCmdLine, int iCmdShow ){
+    SetStdOutToNewConsole();
+    setup();
+    g.hInstance = hInstance;
+    WNDCLASS wc = {
+      CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
+      WndProc,
+      0,
+      0,
+      hInstance,
+      LoadIcon( NULL, IDI_ASTERISK),
+      LoadCursor( NULL, IDC_ARROW ),
+      (HBRUSH)GetStockObject( BLACK_BRUSH ),
+      NULL,
+      TEXT("hello fragment shader")
+    };
+    /* Register that class with the Windows O/S */
+    RegisterClass(&wc);
+
+    int window_style = WS_OVERLAPPEDWINDOW;
+
+
+    RECT wrect;
+    SetRect( &wrect,50,50,50+width,50+height);
+    AdjustWindowRect( &wrect, window_style, false );
+    /*
+    3 lines above unneccesary if width and height refer to size including border,
+    or you know the size of border for the window_style
+                          50, 50,
+                          width + borderwidth, height + borderheight,
+    */
+
+    g.hwnd = CreateWindow(TEXT("hello fragment shader"),
+                          TEXT("hello fragment shader"),
+                          window_style,
+                          wrect.left, wrect.top,
+                          wrect.right - wrect.left, wrect.bottom - wrect.top,
+                          NULL, NULL,
+                          hInstance, NULL);
+
+    if( !g.hwnd ) FatalAppExit( 0, TEXT("CreateWindow() failed!") );
+
+    ShowWindow( g.hwnd, iCmdShow );
+
+    g.hdc = GetDC( g.hwnd );
+
+    PIXELFORMATDESCRIPTOR pfd = { 0 };
+
+    pfd.nSize = sizeof( PIXELFORMATDESCRIPTOR );    // just its size
+    pfd.nVersion = 1;   // always 1
+
+    pfd.dwFlags = PFD_SUPPORT_OPENGL |  // OpenGL support - not DirectDraw
+                  PFD_DOUBLEBUFFER   |  // double buffering support
+                  PFD_DRAW_TO_WINDOW;   // draw to the app window, not to a bitmap image
+
+    pfd.iPixelType = PFD_TYPE_RGBA ;    // red, green, blue, alpha for each pixel
+    pfd.cColorBits = 24;                // 24 bit == 8 bits for red, 8 for green, 8 for blue.
+                                        // This count of color bits EXCLUDES alpha.
+
+    pfd.cDepthBits = 32;                // 32 bits to measure pixel depth.  That's accurate!
+    /*
+    note
+    processing, ARGB 0xAARRGGBB
+    windows , RGBA 0xAABBGGRR i think ?
+    */
+    
+    if (!SetPixelFormat(g.hdc,ChoosePixelFormat(g.hdc,&pfd),&pfd))
+    FatalAppExit( 0, TEXT("SetPixelFormat() failed!") );
+    g.hglrc = wglCreateContext( g.hdc );
+    wglMakeCurrent( g.hdc, g.hglrc );
+    klistra();
+    RENDERER = loadShader("./core/draw.frag","./core/draw.vert");
+    glUseProgram(RENDERER);
+    MSG msg;
+    glready = true;
+
+    uniform(vec2,u_resolution,width,height);
+    while( true ){
+        if( PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) ){
+            if( msg.message == WM_QUIT ) break;
+            TranslateMessage( &msg );
+            DispatchMessage( &msg );
+        }
+        else {
+          draw();
+          glDrawArrays(5,0,4);
+          SwapBuffers(g.hdc);
+          frameCount++;
+        }
+    }
+    wglMakeCurrent( NULL, NULL );
+    wglDeleteContext( g.hglrc );
+    ReleaseDC( g.hwnd, g.hdc );
+    AnimateWindow( g.hwnd, 200, AW_HIDE | AW_BLEND );
+    return msg.wParam;
+}
+
+LRESULT CALLBACK WndProc(   HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam ){
+    switch( message ){
+    case WM_CREATE: return 0;
+    case WM_DESTROY:PostQuitMessage(0); return 0;
+    case WM_SIZE:{
+        width = LOWORD(lparam);
+        height = HIWORD(lparam);
+        if(glready){
+        glViewport(0,0,width,height);
+        uniform(vec2,u_resolution,width,height);
+        if(draw_during_resize){
+        glDrawArrays(5,0,4);
+        SwapBuffers(g.hdc);
+        }
+        }
+    } return 0;
+    case WM_KEYDOWN:
+        switch( wparam ){
+        case VK_ESCAPE:PostQuitMessage(0);
+        } return 0;
+    }
+    return DefWindowProc( hwnd, message, wparam, lparam );
+}
