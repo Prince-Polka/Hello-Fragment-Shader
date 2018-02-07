@@ -21,6 +21,7 @@ otsc,
 tscrate,
 tscmillirate,
 frameCount = 0;
+
 unsigned long long int 
 TSC(){
 	register unsigned long long int
@@ -29,6 +30,7 @@ TSC(){
 	asm("RDTSC\n":"=r" (a), "=r" (d));
 	return d << 32 | a;
 }
+
 unsigned long long int 
 millis(){
 return TSC() / tscmillirate;
@@ -40,6 +42,9 @@ unsigned short
     height = 500,
     frameRate = 60,
     frameMillis = 16;
+int 
+    mouseX,pmouseX,
+    mouseY,pmouseY;
 
 void size(unsigned short w, unsigned short h){
   width = w;
@@ -204,7 +209,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR szCmdLin
     MSG msg;
     glready = true;
 
-    uniform(vec2,u_resolution,width,height);
+    uniform(vec2,resolution,width,height);
     while( true ){
         if( PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) ){
             if( msg.message == WM_QUIT ) break;
@@ -213,7 +218,10 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR szCmdLin
         }
         else {
           unsigned long long int frameTime, frameStart = millis();
+          uniform(FLOAT,time,(double)TSC()/(double)tscrate);
           draw();
+          pmouseX = mouseX;
+          pmouseY = mouseY;
           glDrawArrays(5,0,4);
           SwapBuffers(g.hdc);
           frameCount++;
@@ -237,7 +245,7 @@ LRESULT CALLBACK WndProc(   HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
         height = HIWORD(lparam);
         if(glready){
         glViewport(0,0,width,height);
-        uniform(vec2,u_resolution,width,height);
+        uniform(vec2,resolution,width,height);
         if(draw_during_resize){
         glDrawArrays(5,0,4);
         SwapBuffers(g.hdc);
@@ -248,6 +256,14 @@ LRESULT CALLBACK WndProc(   HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
         switch( wparam ){
         case VK_ESCAPE:PostQuitMessage(0);
         } return 0;
+    case WM_MOUSEMOVE:{
+        POINT mxy;
+        GetCursorPos(&mxy);
+        ScreenToClient(g.hwnd,&mxy);
+        mouseX = mxy.x;
+        mouseY = height-mxy.y;
+        uniform(vec2,mouse,mouseX,mouseY);
+    }
     }
     return DefWindowProc( hwnd, message, wparam, lparam );
 }
