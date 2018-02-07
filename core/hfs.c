@@ -6,22 +6,48 @@
 
 /* Function prototypes */
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
-int _open_osfhandle(long long int,int); /* Works without this but gives warning, where is the definition? */
+int _open_osfhandle(long long int,int);
+/*
+Works without this but gives warning, where is the definition?
+Also btw unistd.h includes this, so if using that header, remove this prototype
+*/
 void draw(),setup();
 
 #define false 0
 #define true 1 /* keep in mind true is actually anything but 0 , not just 1 */
 
-long long int
-frameCount = 0; /* framerate not yet implemented */
+unsigned long long int 
+otsc,
+tscrate,
+tscmillirate,
+frameCount = 0;
+unsigned long long int 
+TSC(){
+	register unsigned long long int
+    a asm("rax"),
+    d asm("rdx");
+	asm("RDTSC\n":"=r" (a), "=r" (d));
+	return d << 32 | a;
+}
+unsigned long long int 
+millis(){
+return TSC() / tscmillirate;
+}
 
 /* defaults to 500x500 if size() function isn't used */
-int width = 500,
-    height = 500;
+unsigned short
+    width = 500,
+    height = 500,
+    frameRate = 60,
+    frameMillis = 16;
 
-void size(int w, int h){
+void size(unsigned short w, unsigned short h){
   width = w;
   height = h;
+}
+void framerate(unsigned short n){
+  frameRate = n;
+  frameMillis = 1000 / n;
 }
 
 unsigned int RENDERER;
@@ -104,8 +130,12 @@ struct Globals{
 
 /* In a Windows app, the starting point is WinMain() */
 int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR szCmdLine, int iCmdShow ){
+    /* pre setup */
     SetStdOutToNewConsole();
-    setup();
+    otsc = TSC();
+    Sleep(1000);
+    tscrate = TSC() - otsc;
+    tscmillirate = tscrate/1000;
     g.hInstance = hInstance;
     WNDCLASS wc = {
       CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
@@ -122,9 +152,11 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR szCmdLin
     /* Register that class with the Windows O/S */
     RegisterClass(&wc);
 
+    setup();
+
+    /* post setup */
+
     int window_style = WS_OVERLAPPEDWINDOW;
-
-
     RECT wrect;
     SetRect( &wrect,50,50,50+width,50+height);
     AdjustWindowRect( &wrect, window_style, false );
@@ -134,7 +166,6 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR szCmdLin
                           50, 50,
                           width + borderwidth, height + borderheight,
     */
-
     g.hwnd = CreateWindow(TEXT("hello fragment shader"),
                           TEXT("hello fragment shader"),
                           window_style,
@@ -146,22 +177,16 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR szCmdLin
     if( !g.hwnd ) FatalAppExit( 0, TEXT("CreateWindow() failed!") );
 
     ShowWindow( g.hwnd, iCmdShow );
-
     g.hdc = GetDC( g.hwnd );
-
     PIXELFORMATDESCRIPTOR pfd = { 0 };
-
     pfd.nSize = sizeof( PIXELFORMATDESCRIPTOR );    // just its size
     pfd.nVersion = 1;   // always 1
-
     pfd.dwFlags = PFD_SUPPORT_OPENGL |  // OpenGL support - not DirectDraw
                   PFD_DOUBLEBUFFER   |  // double buffering support
                   PFD_DRAW_TO_WINDOW;   // draw to the app window, not to a bitmap image
-
     pfd.iPixelType = PFD_TYPE_RGBA ;    // red, green, blue, alpha for each pixel
     pfd.cColorBits = 24;                // 24 bit == 8 bits for red, 8 for green, 8 for blue.
                                         // This count of color bits EXCLUDES alpha.
-
     pfd.cDepthBits = 32;                // 32 bits to measure pixel depth.  That's accurate!
     /*
     note
@@ -187,10 +212,13 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR szCmdLin
             DispatchMessage( &msg );
         }
         else {
+          unsigned long long int frameTime, frameStart = millis();
           draw();
           glDrawArrays(5,0,4);
           SwapBuffers(g.hdc);
           frameCount++;
+          frameTime = millis() - frameStart;
+          Sleep(frameMillis - frameTime);
         }
     }
     wglMakeCurrent( NULL, NULL );
