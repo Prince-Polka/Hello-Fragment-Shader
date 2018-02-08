@@ -1,10 +1,9 @@
 # Hello-Fragment-Shader
-Boilerplate for drawing an OpenGL fragment shader using MinGW ~~only~~
+Boilerplate for drawing an OpenGL fragment shader using MinGW ~~only~~*
 No external libraries
 No geometry, apart from two triangles that fills the window area
 
-UPDATE
-Installed TCC and this code runs in it with just a couple small adjustments  
+* *Installed TCC and this code runs in it with just a couple small adjustments*  
 
 Compile with:
 gcc boilerplate.c -o boilerplate.exe -mwindows -lopengl32
