@@ -2,15 +2,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <gl/gl.h>
-#include "klister.c" // why not "core/klister.c" ?
+#include "klister.c"
 
 /* Function prototypes */
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
-int _open_osfhandle(long long int,int);
-/*
-Works without this but gives warning, where is the definition?
-Also btw unistd.h includes this, so if using that header, remove this prototype
-*/
+int _open_osfhandle(long long int,int);/* <- Works without this but gives warning */
 void draw(),setup();
 
 #define false 0
@@ -22,19 +18,28 @@ tscrate,
 tscmillirate,
 frameCount = 0;
 
+double time = 0;
+
 unsigned long long int 
 TSC(){
-	register unsigned long long int
-    a asm("rax"),
-    d asm("rdx");
-	asm("RDTSC\n":"=r" (a), "=r" (d));
-	return d << 32 | a;
+	unsigned long long int ret = 0;
+  asm(
+    "rdtsc\n"
+    "shlq $32,%%rdx\n"
+    "orq %%rax,%%rdx\n"
+    "movq %%rdx,%0\n"
+    :
+    "=r"(ret)
+    :
+    : "rax","rdx"
+    );
+	return ret;
 }
 
 unsigned long long int 
-millis(){
-return TSC() / tscmillirate;
-}
+millis(){ return (TSC()-otsc) / tscmillirate; }
+double
+seconds(){ return (double)(TSC()-otsc) / tscrate; }
 
 /* defaults to 500x500 if size() function isn't used */
 unsigned short
@@ -217,16 +222,17 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR szCmdLin
             DispatchMessage( &msg );
         }
         else {
-          unsigned long long int frameTime, frameStart = millis();
-          uniform(FLOAT,time,(double)TSC()/(double)tscrate);
+          unsigned long long int frameTime=0, frameEnd=0 , frameStart = millis();
+          uniform( FLOAT, time, seconds() );
           draw();
           pmouseX = mouseX;
           pmouseY = mouseY;
           glDrawArrays(5,0,4);
           SwapBuffers(g.hdc);
           frameCount++;
-          frameTime = millis() - frameStart;
-          Sleep(frameMillis - frameTime);
+          frameEnd = millis();
+          frameTime = frameEnd - frameStart;
+          Sleep(frameMillis - frameTime); 
         }
     }
     wglMakeCurrent( NULL, NULL );
