@@ -6,12 +6,16 @@ Boilerplate for drawing an OpenGL 2D* fragment shader in Windows
 
 Tiny C Compiler (TCC) , it's in HFS.zip  
 
-OpenGL in a PROPER Windows APP (NO GLUT)  
-https://bobobobo.wordpress.com/2008/02/11/opengl-in-a-proper-windows-app-no-glut/  
+TCC is [for now](http://repo.or.cz/tinycc.git/blob/1a4d4b76e803a32db1168e66ad8f8b26c29c8ea0:/RELICENSING) licensed under [GPL 2.1](http://www.gnu.org/licenses/lgpl-2.1.html)
+
+
+[OpenGL in a PROPER Windows APP (NO GLUT)](
+https://bobobobo.wordpress.com/2008/02/11/opengl-in-a-proper-windows-app-no-glut/)
 opens a window , but no shader  
 
-Hello Triangle OpenGL 4 Up and Running  
-http://antongerdelan.net/opengl/hellotriangle.html  
+
+[Hello Triangle OpenGL 4 Up and Running](  
+http://antongerdelan.net/opengl/hellotriangle.html)  
 loads shader but uses libraries (GLFW and GLEW)
 
 # How to run
